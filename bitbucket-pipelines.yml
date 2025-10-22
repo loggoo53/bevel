@@ -1,19 +1,18 @@
 image: atlassian/default-image:4
 
 pipelines:
+  # All of the bitbucket repository branches will be synced/mirrored to github.
   branches:
-    # All of the bitbucket repository branches will be synced/mirrored to github.
     "**":
       - step:
           name: "Auto Mirror to GitHub"
           script:
             - git config --global user.email "$GITHUB_USER_EMAIL"
             - git config --global user.name "$GITHUB_USER_NAME"
-            - git remote add github https://$GITHUB_USERNAME:$GITHUB_TOKEN@github.com/loggoo53/bevel.git
-            - git fetch origin
+            - git remote add github https://$GITHUB_USERNAME:$GITHUB_TOKEN@github.com/loggoo53/bevel.git || true
+            - git fetch origin --tags
             - git push --mirror github
 
-pipelines:
   custom:
     sync-from-github:
       - step:
@@ -21,6 +20,6 @@ pipelines:
           script:
             - git config --global user.email "$BITBUCKET_USER_EMAIL"
             - git config --global user.name "$BITBUCKET_USER_NAME"
-            - git remote add github https://$GITHUB_USERNAME:$GITHUB_TOKEN@github.com/loggoo53/bevel.git
-            - git fetch github
+            - git remote add github https://$GITHUB_USERNAME:$GITHUB_TOKEN@github.com/loggoo53/bevel.git || true
+            - git fetch github --tags
             - git push --mirror https://x-token-auth:$BITBUCKET_API_TOKEN@bitbucket.org/doconchain1/bevel.git
