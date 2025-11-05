@@ -11,7 +11,7 @@ spec:
     branch: minitube
   secretRef:
     name: flux-system
-  url: https://bitbucket.org/doconchain1/bevel.git
+  url: ssh://git@bitbucket.org/doconchain1/bevel.git
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
