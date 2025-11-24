@@ -1,38 +1,106 @@
-##############################################################################################
-#  Copyright Accenture. All Rights Reserved.
-#
-#  SPDX-License-Identifier: Apache-2.0
-##############################################################################################
-
-#############################################################################################
-# This role generates the value file for the helm releases 
-#############################################################################################
-
-# Ensure that the directory exists, and creates it, if it does not exist
-- name: "Ensure {{ values_dir }}/{{ name }} dir exists"
-  file:
-    path: "{{ values_dir }}/{{ name }}"
-    state: directory
-
-############################################################################################
-# Create the value file for the helm release
-# This is done by consuming a template file which is passes as a variable by the role
-# including this helm_component role
-- name: "Create value file for {{ component_name }}"
-  template:
-    src: "{{ helm_templates[type] | default('helm_component.tpl') }}"
-    dest: "{{ values_dir }}/{{ name }}/{{ component_name }}.yaml"
-
-############################################################################################
-# Test the value file for syntax errors/ missing values
-# This is done by calling the helm_lint role and passing the value file parameter
-# When a new helm_component is added, changes should be made in helm_lint role as well
-- name: Helm lint
-  include_role: 
-    name: "{{ playbook_dir }}/../../shared/configuration/roles/helm_lint"
-  vars:
-    helmtemplate_type: "{{ type }}"
-    chart_path: "{{ charts_dir }}"
-    value_file: "{{ values_dir }}/{{ name }}/{{ component_name }}.yaml"
-  tags:
-    - notest
+# Log the status before retry for Job
+- name: Log status before checking job {{ component_name }}
+  debug:
+    msg: "Checking for job {{ component_name }} in namespace {{ namespace }}. Retrying up to {{ network.env.retry_count }} times with 30s delay."
+  when: component_type == "Job"
+ 
+- name: Wait for job {{ component_name }} to complete in {{ namespace }}
+  k8s_info:
+    kind: Job
+    namespace: "{{ namespace }}"
+    kubeconfig: "{{ kubernetes.config_file }}"
+    context: "{{ kubernetes.context }}"
+    label_selectors:
+      - "app={{ component_name }}"
+  register: job_result
+  retries: "{{ network.env.retry_count }}"
+  delay: "{{ delay | default(30) }}"
+  until: >
+    job_result.resources | length > 0 and
+    (job_result.resources[0].status.succeeded is defined and (job_result.resources[0].status.succeeded | int) >= 1)
+  when: component_type == "Job"
+ 
+# Output debug message if Job creation fails after retries
+- name: Debug information for job {{ component_name }} failure
+  debug:
+    msg: >-
+      Potential causes for job {{ component_name }} in namespace {{ namespace }} failure:
+      1. Job pod may have failed to start - check pod events
+      2. Job execution may have failed - check job logs
+      3. Resource constraints or node scheduling issues
+      4. Invalid configuration or missing secrets/configmaps
+      Run 'kubectl logs -n {{ namespace }} -l app={{ component_name }}' for detailed logs.
+      Run 'kubectl describe job -n {{ namespace }} -l app={{ component_name }}' for more details.
+      Job check result for {{ component_name }} in {{ namespace }}:
+      job_result.resources length = {{ job_result.resources | length if job_result is defined else 'undefined' }}
+      job_result: {{ job_result | to_nice_json }}
+  when:
+    - component_type == "Job"
+    - job_result is defined
+    - (job_result.resources | length == 0) or
+      (
+        job_result.resources | length > 0 and
+        (job_result.resources[0].status.succeeded is not defined or (job_result.resources[0].status.succeeded | int) < 1)
+      )
+ 
+# one time job check and registers the result variable
+- name: "Check for job {{ component_name }} in {{ namespace }}"
+  k8s_info:
+    kind: "Pod"
+    namespace: "{{ namespace }}"
+    label_selectors:
+      - "app = {{ component_name }}"
+    kubeconfig: "{{ kubernetes.config_file }}"
+    context: "{{ kubernetes.context }}"
+  register: result
+  when: component_type == "OneTimeJob"
+ 
+# Log retry information for Pod
+- name: Log status before checking pod {{ component_name }}
+  debug:
+    msg: "Checking for pod {{ component_name }} in namespace {{ namespace }}. Retrying up to {{ network.env.retry_count }} times with {{ delay | default(30) }}s delay."
+  when: component_type == "Pod"
+ 
+# Task to check if Pod is deployed and running
+# This task will try for a maximum of 10 times with an interval of
+# 60 seconds between each try
+- name: Wait for pod {{ component_name }} to start in {{ namespace }}
+  k8s_info:
+    kind: Pod
+    namespace: "{{ namespace }}"
+    kubeconfig: "{{ kubeconfig | default(kubernetes.config_file) }}"
+    context: "{{ context | default(kubernetes.context) }}"
+    label_selectors: "{{ label_selectors }}"
+    field_selectors:
+      - status.phase=Running
+  register: pod_result
+  retries: "{{ network.env.retry_count }}"
+  delay: "{{ delay | default(30) }}"
+  until: pod_result.resources | length > 0
+  when: component_type == "Pod"
+ 
+# Output debug message if Pod creation fails after retries
+- name: Debug information for pod {{ component_name }} failure
+  debug:
+    msg: >-
+      Potential causes for pod {{ component_name }} in namespace {{ namespace }} failure:
+      1. Image pull issues - check image name and credentials
+      2. Resource constraints (CPU/memory limits)
+      3. Node scheduling issues or taints/tolerations
+      4. Configuration errors in the pod spec
+      5. Missing or invalid volumes/mounts
+      Run 'kubectl describe pod -n {{ namespace }} -l {{ label_selectors | join(",") }}' for detailed events.
+  when:
+    - component_type == "Pod"
+    - pod_result is defined
+    - pod_result.resources | length == 0
+  
+# Print a warning message if job is still running/pending after retries but not failed
+- name: Status update for job {{ component_name }}
+  debug:
+    msg: "Job {{ component_name }} in namespace {{ namespace }} is still running or pending. Consider increasing retry_count or checking job config."
+  when:
+    - component_type == "Job"
+    - job_result is defined
+    - job_result.resources | length > 0
+    - (job_result.resources[0].status.succeeded is not defined or (job_result.resources[0].status.succeeded | int) != 1)
