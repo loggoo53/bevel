@@ -8,10 +8,10 @@ metadata:
 spec:
   interval: 1m0s
   ref:
-    branch: dockermain
+    branch: staging
   secretRef:
     name: flux-system
-  url: ssh://git@github.com/loggoo53/bevel.git
+  url: ssh://git@github.com/henjimantaring/bevel.git
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
