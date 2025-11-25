@@ -23,7 +23,7 @@ spec:
         version: {{ network.version }}
       add_organization: {{ add_organization }}
       images:
-        fabrictools: {{ docker_url }}/bevel-fabric-tools:2.5.4
+        fabrictools: {{ docker_url }}/{{ fabric_tools_image }}:{{ network.version }}
         alpineutils: {{ docker_url }}/bevel-alpine:latest
 
     peer:
