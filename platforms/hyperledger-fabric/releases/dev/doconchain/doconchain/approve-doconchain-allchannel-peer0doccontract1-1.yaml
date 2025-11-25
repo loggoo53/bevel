@@ -1,0 +1,63 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: approve-doconchain-allchannel-peer0doccontract1-1
+  namespace: doconchain-net
+  annotations:
+    fluxcd.io/automated: "false"
+spec:
+  interval: 1m
+  releaseName: approve-doconchain-allchannel-peer0doccontract1-1
+  chart:
+    spec:
+      interval: 1m
+      sourceRef:
+        kind: GitRepository
+        name: flux-prod
+        namespace: flux-prod
+      chart: platforms/hyperledger-fabric/charts/fabric-chaincode-approve
+  values:
+    metadata:
+      namespace: doconchain-net
+      images:
+        fabrictools: ghcr.io/hyperledger/bevel-fabric-tools:2.5.4
+        alpineutils: ghcr.io/hyperledger/bevel-alpine:latest
+
+    peer:
+      name: peer0
+      address: peer0.doconchain-net:7051
+      localmspid: doconchainMSP
+      loglevel: debug
+      tlsstatus: true
+    vault:
+      role: vault-role
+      address: http://vault.vault.svc:8200
+      authpath: proddoconchain
+      adminsecretprefix: secretsv2/data/doconchain/peerOrganizations/doconchain-net/users/admin 
+      orderersecretprefix: secretsv2/data/doconchain/peerOrganizations/doconchain-net/orderer
+      serviceaccountname: vault-auth
+      type: hashicorp
+      imagesecretname: ""
+      tls: false
+    orderer:
+      address: orderer1.doconchain-net.org1proxy.hlf.doconchain.com:443
+    chaincode:
+      builder: hyperledger/fabric-ccenv:2.5.4
+      name: doccontract
+      version: 1
+      sequence: 1
+      lang: node
+      commitarguments: '\"initLedger\",\"\"'
+      endorsementpolicies:  ''
+      initrequired: False
+      repository:
+        hostname: "https:"
+        git_username: "jayson.mag-isa@doconchain.com"
+        url: https://github.com/loggoo53/doccontract.git
+        branch: main
+        path: /
+      pdc:
+        enabled: false
+        collectionsconfig:  ""
+    channel:
+      name: allchannel
