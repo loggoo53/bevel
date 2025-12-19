@@ -2,7 +2,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: ca
-  namespace: doconchain-net
+  namespace: prelivedoc-net
   annotations:
     fluxcd.io/automated: "false"
 spec:
@@ -27,14 +27,14 @@ spec:
         type: hashicorp
         network: fabric
         address: http://vault.vault.svc:8200
-        authPath: proddoconchain
+        authPath: prodprelivedoc
         secretEngine: secretsv2
-        secretPrefix: "data/proddoconchain"
+        secretPrefix: "data/prodprelivedoc"
         role: vault-role
         tls: false
       proxy:
         provider: haproxy
-        externalUrlSuffix: org1proxy.hlf.doconchain.com
+        externalUrlSuffix: org3proxy.hlf.doconchain.com
 
     storage:
       size: 512Mi
@@ -51,9 +51,9 @@ spec:
     server:
       removeCertsOnDelete: true
       tlsStatus: true
-      adminUsername: doconchain-admin
-      adminPassword: doconchain-adminpw
-      subject: "/C=GB/ST=London/L=London/O=Orderer"
+      adminUsername: prelivedoc-admin
+      adminPassword: prelivedoc-adminpw
+      subject: "'/C=US/ST=New York/L=New York/O=Store'"
       clusterIpPort: 7054
 
     labels:
